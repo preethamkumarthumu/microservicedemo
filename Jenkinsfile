@@ -25,9 +25,9 @@ pipeline {
         HELM_VALUES = 'deployment/helm/crm/values.yaml'
         HELM_DEV_VALUES = 'deployment/helm/crm/values-dev.yaml'
 
-        // IMPORTANT:
-        // Replace this with the actual Terraform-created EKS cluster name.
-        EKS_CLUSTER_NAME = 'terraform-networking-dev-eks'
+        // CD is disabled until the Terraform EKS cluster is available
+        ENABLE_DEPLOY = 'false'
+        EKS_CLUSTER_NAME = ''
     }
 
     stages {
@@ -77,10 +77,12 @@ pipeline {
         }
 
         /*
-         * Enable this stage after the Jenkins ↔ SonarQube
-         * server configuration is completed.
+         * SonarQube stages are temporarily disabled.
          *
-         * Do NOT use the existing root sonar-project.properties
+         * Enable these after Jenkins <-> SonarQube
+         * configuration is completed.
+         *
+         * Do not use the existing root sonar-project.properties
          * because it currently points to tenantCrm rather than
          * this Maven reactor.
          */
@@ -213,6 +215,11 @@ pipeline {
         }
 
         stage('Configure EKS') {
+
+            when {
+                environment name: 'ENABLE_DEPLOY', value: 'true'
+            }
+
             steps {
                 sh '''
                     set -e
@@ -227,6 +234,11 @@ pipeline {
         }
 
         stage('Deploy with Helm') {
+
+            when {
+                environment name: 'ENABLE_DEPLOY', value: 'true'
+            }
+
             steps {
                 sh '''
                     set -e
@@ -257,6 +269,11 @@ pipeline {
         }
 
         stage('Verify Deployment') {
+
+            when {
+                environment name: 'ENABLE_DEPLOY', value: 'true'
+            }
+
             steps {
                 sh '''
                     set -e
@@ -280,11 +297,11 @@ pipeline {
     post {
 
         success {
-            echo 'CRM CI/CD pipeline completed successfully.'
+            echo 'CRM CI pipeline completed successfully.'
         }
 
         failure {
-            echo 'CRM CI/CD pipeline failed. Check the failed stage logs.'
+            echo 'CRM CI pipeline failed. Check the failed stage logs.'
         }
 
         always {
