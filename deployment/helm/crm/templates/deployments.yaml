@@ -1,0 +1,90 @@
+{{- range $key, $service := .Values.services }}
+{{- if $service.enabled }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: {{ $service.name }}
+  namespace: {{ $.Values.namespace }}
+
+spec:
+  replicas: {{ $.Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: {{ $service.name }}
+
+  template:
+    metadata:
+      labels:
+        app: {{ $service.name }}
+
+    spec:
+      containers:
+        - name: {{ $service.name }}
+
+          image: "{{ $.Values.image.repository }}:{{ $service.imageTag }}"
+
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+
+          ports:
+            - containerPort: {{ $service.port }}
+
+          {{- if or $service.databaseEnabled $service.env }}
+          env:
+
+            {{- if $service.databaseEnabled }}
+
+            - name: DB_HOST
+              value: {{ $.Values.database.host | quote }}
+
+            - name: DB_PORT
+              value: {{ $.Values.database.port | quote }}
+
+            - name: DB_NAME
+              value: {{ $.Values.database.name | quote }}
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.database.secretName }}
+                  key: username
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.database.secretName }}
+                  key: password
+
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://{{ $.Values.database.host }}:{{ $.Values.database.port }}/{{ $.Values.database.name }}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.database.secretName }}
+                  key: username
+
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.database.secretName }}
+                  key: password
+
+            {{- end }}
+
+            {{- with $service.env }}
+            {{- range $envName, $envValue := . }}
+
+            - name: {{ $envName }}
+              value: {{ $envValue | quote }}
+
+            {{- end }}
+            {{- end }}
+
+          {{- end }}
+
+{{- end }}
+{{- end }}

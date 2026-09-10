@@ -1,0 +1,22 @@
+namespace: crm-dev
+
+replicaCount: 1
+
+image:
+  repository: 509989879246.dkr.ecr.eu-north-1.amazonaws.com/terraform-networking-dev-application
+  pullPolicy: IfNotPresent
+
+database:
+  host: terraform-networking-dev-mysql.czaoaewq24na.eu-north-1.rds.amazonaws.com
+  port: "3306"
+  name: crm
+  secretName: crm-db-secret
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
