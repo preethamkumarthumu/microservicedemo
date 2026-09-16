@@ -10,24 +10,26 @@ pipeline {
 
     environment {
 
-        // AWS
-        AWS_REGION = 'eu-north-1'
-        AWS_ACCOUNT_ID = '509989879246'
+        // AWS / ECR
+        AWS_REGION       = 'eu-north-1'
+        AWS_ACCOUNT_ID   = '509989879246'
+        ECR_REPOSITORY   = 'terraform-networking-dev-application'
+        ECR_REGISTRY     = '509989879246.dkr.ecr.eu-north-1.amazonaws.com'
 
-        // ECR
-        ECR_REPOSITORY = 'terraform-networking-dev-application'
-        ECR_REGISTRY = '509989879246.dkr.ecr.eu-north-1.amazonaws.com'
+        // Nexus Docker Registry
+        NEXUS_REGISTRY   = '10.10.11.124:8081'
+        NEXUS_REPOSITORY = 'crm-docker'
 
         // Kubernetes / Helm
-        K8S_NAMESPACE = 'crm-dev'
-        HELM_RELEASE = 'crm'
-        HELM_CHART = 'deployment/helm/crm'
-        HELM_VALUES = 'deployment/helm/crm/values.yaml'
-        HELM_DEV_VALUES = 'deployment/helm/crm/values-dev.yaml'
+        K8S_NAMESPACE    = 'crm-dev'
+        EKS_CLUSTER_NAME = 'terraform-networking-dev-eks'
+        HELM_RELEASE     = 'crm'
+        HELM_CHART       = 'deployment/helm/crm'
+        HELM_VALUES      = 'deployment/helm/crm/values.yaml'
+        HELM_DEV_VALUES  = 'deployment/helm/crm/values-dev.yaml'
 
-        // CD is disabled until the Terraform EKS cluster is available
+        // Keep CD off until Nexus image pulling from EKS is configured
         ENABLE_DEPLOY = 'false'
-        EKS_CLUSTER_NAME = ''
     }
 
     stages {
@@ -55,19 +57,20 @@ pipeline {
                     echo "===== AWS CLI ====="
                     aws --version
 
-                    echo "===== kubectl ====="
-                    kubectl version --client
-
-                    echo "===== Helm ====="
-                    helm version --short
-
                     echo "===== AWS Identity ====="
                     aws sts get-caller-identity
+
+                    echo "===== SonarQube ====="
+                    curl -fsS http://10.10.11.49:9000/api/system/status
+
+                    echo
+                    echo "===== Nexus ====="
+                    curl -fsS http://${NEXUS_REGISTRY}/service/rest/v1/status
                 '''
             }
         }
 
-        stage('Maven Build & Test') {
+        stage('Maven Build & Unit Tests') {
             steps {
                 sh '''
                     set -e
@@ -76,22 +79,12 @@ pipeline {
             }
         }
 
-        /*
-         * SonarQube stages are temporarily disabled.
-         *
-         * Enable these after Jenkins <-> SonarQube
-         * configuration is completed.
-         *
-         * Do not use the existing root sonar-project.properties
-         * because it currently points to tenantCrm rather than
-         * this Maven reactor.
-         */
-
-        /*
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
+                        set -e
+
                         mvn sonar:sonar \
                           -Dsonar.projectKey=crm-microservices \
                           -Dsonar.projectName="CRM Microservices"
@@ -107,7 +100,6 @@ pipeline {
                 }
             }
         }
-        */
 
         stage('Helm Validation') {
             steps {
@@ -126,6 +118,55 @@ pipeline {
             }
         }
 
+        stage('Build Docker Images') {
+            steps {
+                script {
+
+                    def ecrServices = [
+                        'gateway-service',
+                        'auth-service'
+                    ]
+
+                    def nexusServices = [
+                        'user-service',
+                        'admin-service',
+                        'employee-service',
+                        'customer-service',
+                        'hr-service',
+                        'task-service'
+                    ]
+
+                    ecrServices.each { service ->
+
+                        def imageTag = "${service}-${BUILD_NUMBER}"
+
+                        echo "Building ECR image: ${service}:${imageTag}"
+
+                        sh """
+                            docker build \
+                              -f ${service}/Dockerfile \
+                              -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag} \
+                              .
+                        """
+                    }
+
+                    nexusServices.each { service ->
+
+                        def imageTag = "${service}-${BUILD_NUMBER}"
+
+                        echo "Building Nexus image: ${service}:${imageTag}"
+
+                        sh """
+                            docker build \
+                              -f ${service}/Dockerfile \
+                              -t ${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}/${service}:${imageTag} \
+                              .
+                        """
+                    }
+                }
+            }
+        }
+
         stage('ECR Login') {
             steps {
                 sh '''
@@ -140,74 +181,75 @@ pipeline {
             }
         }
 
-        stage('Build Docker Images') {
+        stage('Push ECR Images') {
             steps {
                 script {
 
                     def services = [
-                        'auth-service',
-                        'user-service',
-                        'lead-service',
-                        'customer-service',
-                        'contact-service',
-                        'opportunity-service',
-                        'quotation-service',
-                        'invoice-service',
-                        'task-service',
-                        'notification-service',
-                        'file-service',
-                        'report-service',
-                        'audit-service',
-                        'gateway-service'
+                        'gateway-service',
+                        'auth-service'
                     ]
 
                     services.each { service ->
 
                         def imageTag = "${service}-${BUILD_NUMBER}"
 
-                        echo "Building ${service}:${imageTag}"
+                        echo "Pushing ${service} to ECR"
 
                         sh """
-                            docker build \
-                              -f ${service}/Dockerfile \
-                              -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag} \
-                              .
+                            docker push \
+                              ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}
                         """
                     }
                 }
             }
         }
 
-        stage('Push Docker Images') {
+        stage('Nexus Login') {
+            steps {
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    )
+                ]) {
+
+                    sh '''
+                        set +x
+
+                        echo "$NEXUS_PASS" | docker login \
+                          ${NEXUS_REGISTRY} \
+                          --username "$NEXUS_USER" \
+                          --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Nexus Images') {
             steps {
                 script {
 
                     def services = [
-                        'auth-service',
                         'user-service',
-                        'lead-service',
+                        'admin-service',
+                        'employee-service',
                         'customer-service',
-                        'contact-service',
-                        'opportunity-service',
-                        'quotation-service',
-                        'invoice-service',
-                        'task-service',
-                        'notification-service',
-                        'file-service',
-                        'report-service',
-                        'audit-service',
-                        'gateway-service'
+                        'hr-service',
+                        'task-service'
                     ]
 
                     services.each { service ->
 
                         def imageTag = "${service}-${BUILD_NUMBER}"
 
-                        echo "Pushing ${service}:${imageTag}"
+                        echo "Pushing ${service} to Nexus"
 
                         sh """
                             docker push \
-                              ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}
+                              ${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}/${service}:${imageTag}
                         """
                     }
                 }
@@ -229,6 +271,7 @@ pipeline {
                       --name ${EKS_CLUSTER_NAME}
 
                     kubectl cluster-info
+                    kubectl get nodes
                 '''
             }
         }
@@ -248,20 +291,14 @@ pipeline {
                       --create-namespace \
                       -f ${HELM_VALUES} \
                       -f ${HELM_DEV_VALUES} \
+                      --set services.gateway.imageTag=gateway-service-${BUILD_NUMBER} \
                       --set services.auth.imageTag=auth-service-${BUILD_NUMBER} \
                       --set services.user.imageTag=user-service-${BUILD_NUMBER} \
-                      --set services.lead.imageTag=lead-service-${BUILD_NUMBER} \
+                      --set services.admin.imageTag=admin-service-${BUILD_NUMBER} \
+                      --set services.employee.imageTag=employee-service-${BUILD_NUMBER} \
                       --set services.customer.imageTag=customer-service-${BUILD_NUMBER} \
-                      --set services.contact.imageTag=contact-service-${BUILD_NUMBER} \
-                      --set services.opportunity.imageTag=opportunity-service-${BUILD_NUMBER} \
-                      --set services.quotation.imageTag=quotation-service-${BUILD_NUMBER} \
-                      --set services.invoice.imageTag=invoice-service-${BUILD_NUMBER} \
+                      --set services.hr.imageTag=hr-service-${BUILD_NUMBER} \
                       --set services.task.imageTag=task-service-${BUILD_NUMBER} \
-                      --set services.notification.imageTag=notification-service-${BUILD_NUMBER} \
-                      --set services.file.imageTag=file-service-${BUILD_NUMBER} \
-                      --set services.report.imageTag=report-service-${BUILD_NUMBER} \
-                      --set services.audit.imageTag=audit-service-${BUILD_NUMBER} \
-                      --set services.gateway.imageTag=gateway-service-${BUILD_NUMBER} \
                       --wait \
                       --timeout 10m
                 '''
@@ -301,12 +338,13 @@ pipeline {
         }
 
         failure {
-            echo 'CRM CI pipeline failed. Check the failed stage logs.'
+            echo 'CRM pipeline failed. Check the failed stage logs.'
         }
 
         always {
             sh '''
                 docker logout ${ECR_REGISTRY} >/dev/null 2>&1 || true
+                docker logout ${NEXUS_REGISTRY} >/dev/null 2>&1 || true
             '''
         }
     }
