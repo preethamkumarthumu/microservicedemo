@@ -29,7 +29,7 @@ pipeline {
         HELM_DEV_VALUES  = 'deployment/helm/crm/values-dev.yaml'
 
         // Keep CD off until Nexus image pulling from EKS is configured
-        ENABLE_DEPLOY = 'false'
+        ENABLE_DEPLOY = 'true'
     }
 
     stages {
