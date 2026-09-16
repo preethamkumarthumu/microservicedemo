@@ -80,18 +80,17 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('sonarqube') {
-                    sh '''
-                        set -e
-
-                        mvn sonar:sonar \
-                          -Dsonar.projectKey=crm-microservices \
-                          -Dsonar.projectName="CRM Microservices"
-                    '''
-                }
-            }
+    steps {
+        withSonarQubeEnv('sonarqube') {
+            sh '''
+                set -e
+                mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                  -Dsonar.projectKey=crm-microservices \
+                  -Dsonar.projectName="CRM Microservices"
+            '''
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
