@@ -275,10 +275,6 @@ pipeline {
                           --name ${EKS_CLUSTER_NAME}
 
                         kubectl cluster-info
-                        kubectl get nodes
-
-                        kubectl create namespace ${K8S_NAMESPACE} \
-                          --dry-run=client -o yaml | kubectl apply -f -
 
                         kubectl create secret docker-registry nexus-registry-secret \
                           --docker-server=${NEXUS_REGISTRY} \
