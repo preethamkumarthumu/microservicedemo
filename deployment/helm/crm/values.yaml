@@ -20,3 +20,6 @@ resources:
   limits:
     cpu: "500m"
     memory: "512Mi"
+
+nexus:
+  repository: 10.10.11.124:8081/crm-docker

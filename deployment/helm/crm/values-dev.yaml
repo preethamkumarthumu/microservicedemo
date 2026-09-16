@@ -1,8 +1,20 @@
 services:
 
+  gateway:
+    enabled: true
+    name: gateway-service
+    registry: ecr
+    imageTag: gateway-service-latest
+    port: 8080
+    databaseEnabled: false
+    env:
+      AUTH_SERVICE_URL: "http://auth-service:8081"
+      USER_SERVICE_URL: "http://user-service:8082"
+
   auth:
     enabled: true
     name: auth-service
+    registry: ecr
     imageTag: auth-service-latest
     port: 8081
     databaseEnabled: true
@@ -10,94 +22,47 @@ services:
   user:
     enabled: true
     name: user-service
+    registry: nexus
     imageTag: user-service-latest
     port: 8082
     databaseEnabled: true
 
-  gateway:
+  admin:
     enabled: true
-    name: gateway-service
-    imageTag: gateway-service-latest
-    port: 8080
-    databaseEnabled: false
+    name: admin-service
+    registry: nexus
+    imageTag: admin-service-latest
+    port: 8082
+    databaseEnabled: true
 
-    env:
-      AUTH_SERVICE_URL: "http://auth-service:8081"
-      USER_SERVICE_URL: "http://user-service:8082"
-
-  lead:
+  employee:
     enabled: true
-    name: lead-service
-    imageTag: lead-service-latest
+    name: employee-service
+    registry: nexus
+    imageTag: employee-service-latest
     port: 8083
     databaseEnabled: true
 
   customer:
     enabled: true
     name: customer-service
+    registry: nexus
     imageTag: customer-service-latest
     port: 8084
     databaseEnabled: true
 
-  contact:
+  hr:
     enabled: true
-    name: contact-service
-    imageTag: contact-service-latest
+    name: hr-service
+    registry: nexus
+    imageTag: hr-service-latest
     port: 8085
-    databaseEnabled: true
-
-  opportunity:
-    enabled: true
-    name: opportunity-service
-    imageTag: opportunity-service-latest
-    port: 8086
-    databaseEnabled: true
-
-  quotation:
-    enabled: true
-    name: quotation-service
-    imageTag: quotation-service-latest
-    port: 8087
-    databaseEnabled: true
-
-  invoice:
-    enabled: true
-    name: invoice-service
-    imageTag: invoice-service-latest
-    port: 8088
     databaseEnabled: true
 
   task:
     enabled: true
     name: task-service
+    registry: nexus
     imageTag: task-service-latest
     port: 8089
-    databaseEnabled: true
-
-  notification:
-    enabled: true
-    name: notification-service
-    imageTag: notification-service-latest
-    port: 8090
-    databaseEnabled: true
-
-  file:
-    enabled: true
-    name: file-service
-    imageTag: file-service-latest
-    port: 8091
-    databaseEnabled: true
-
-  report:
-    enabled: true
-    name: report-service
-    imageTag: report-service-latest
-    port: 8092
-    databaseEnabled: true
-
-  audit:
-    enabled: true
-    name: audit-service
-    imageTag: audit-service-latest
-    port: 8093
     databaseEnabled: true

@@ -22,10 +22,19 @@ spec:
         app: {{ $service.name }}
 
     spec:
+      {{- if eq $service.registry "nexus" }}
+      imagePullSecrets:
+        - name: nexus-registry-secret
+      {{- end }}
+
       containers:
         - name: {{ $service.name }}
 
+          {{- if eq $service.registry "nexus" }}
+          image: "{{ $.Values.nexus.repository }}/{{ $service.name }}:{{ $service.imageTag }}"
+          {{- else }}
           image: "{{ $.Values.image.repository }}:{{ $service.imageTag }}"
+          {{- end }}
 
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
 
