@@ -32,17 +32,11 @@
         <module>common-library</module>
         <module>auth-service</module>
         <module>user-service</module>
-        <module>lead-service</module>
+        <module>admin-service</module>
+        <module>employee-service</module>
         <module>customer-service</module>
-        <module>contact-service</module>
-        <module>opportunity-service</module>
-        <module>quotation-service</module>
-        <module>invoice-service</module>
+        <module>hr-service</module>
         <module>task-service</module>
-        <module>notification-service</module>
-        <module>file-service</module>
-        <module>report-service</module>
-        <module>audit-service</module>
         <module>gateway-service</module>
     </modules>
 
