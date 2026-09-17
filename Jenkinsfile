@@ -166,6 +166,10 @@ pipeline {
             }
         }
         stage('Trivy Security Scan') {
+            environment {
+                TMPDIR = '/var/lib/jenkins/trivy-tmp'
+            }
+
             steps {
                 script {
 
