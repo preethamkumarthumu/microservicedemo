@@ -301,7 +301,6 @@ pipeline {
 
                     helm upgrade --install ${HELM_RELEASE} ${HELM_CHART} \
                       --namespace ${K8S_NAMESPACE} \
-                      --create-namespace \
                       -f ${HELM_VALUES} \
                       -f ${HELM_DEV_VALUES} \
                       --set services.gateway.imageTag=gateway-service-${BUILD_NUMBER} \
