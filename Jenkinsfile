@@ -165,6 +165,58 @@ pipeline {
                 }
             }
         }
+        stage('Trivy Security Scan') {
+            steps {
+                script {
+
+                    def ecrServices = [
+                        'gateway-service',
+                        'auth-service'
+                    ]
+
+                    def nexusServices = [
+                        'user-service',
+                        'admin-service',
+                        'employee-service',
+                        'customer-service',
+                        'hr-service',
+                        'task-service'
+                    ]
+
+                    ecrServices.each { service ->
+
+                        def imageTag = "${service}-${BUILD_NUMBER}"
+                        def image = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
+
+                        echo "Trivy scanning ECR image: ${image}"
+
+                        sh """
+                            trivy image \
+                              --severity HIGH,CRITICAL \
+                              --ignore-unfixed \
+                              --exit-code 1 \
+                              ${image}
+                        """
+                    }
+
+                    nexusServices.each { service ->
+
+                        def imageTag = "${service}-${BUILD_NUMBER}"
+                        def image = "${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}/${service}:${imageTag}"
+
+                        echo "Trivy scanning Nexus image: ${image}"
+
+                        sh """
+                            trivy image \
+                              --severity HIGH,CRITICAL \
+                              --ignore-unfixed \
+                              --exit-code 1 \
+                              ${image}
+                        """
+                    }
+                }
+            }
+        }
 
         stage('ECR Login') {
             steps {
@@ -311,6 +363,7 @@ pipeline {
                       --set services.customer.imageTag=customer-service-${BUILD_NUMBER} \
                       --set services.hr.imageTag=hr-service-${BUILD_NUMBER} \
                       --set services.task.imageTag=task-service-${BUILD_NUMBER} \
+                      --atomic \
                       --wait \
                       --timeout 10m
                 '''
