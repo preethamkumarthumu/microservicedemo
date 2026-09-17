@@ -274,7 +274,7 @@ pipeline {
                           --region ${AWS_REGION} \
                           --name ${EKS_CLUSTER_NAME}
 
-                        kubectl cluster-info
+                        kubectl get pods -n ${K8S_NAMESPACE}
 
                         kubectl create secret docker-registry nexus-registry-secret \
                           --docker-server=${NEXUS_REGISTRY} \
