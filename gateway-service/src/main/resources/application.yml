@@ -11,6 +11,8 @@ spring:
     compatibility-verifier:
       enabled: false
     gateway:
+      default-filters:
+        - RewriteLocationResponseHeader=AS_IN_REQUEST, Location, ,
       discovery:
         locator:
           enabled: false
