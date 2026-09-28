@@ -16,9 +16,6 @@ pipeline {
         ECR_REPOSITORY   = 'terraform-networking-dev-application'
         ECR_REGISTRY     = '509989879246.dkr.ecr.eu-north-1.amazonaws.com'
 
-        // Nexus Docker Registry
-        NEXUS_REGISTRY   = '10.10.11.124:8081'
-        NEXUS_REPOSITORY = 'crm-docker'
 
         // Kubernetes / Helm
         K8S_NAMESPACE    = 'crm-dev'
@@ -28,8 +25,7 @@ pipeline {
         HELM_VALUES      = 'deployment/helm/crm/values.yaml'
         HELM_DEV_VALUES  = 'deployment/helm/crm/values-dev.yaml'
 
-        // Keep CD off until Nexus image pulling from EKS is configured
-        ENABLE_DEPLOY = 'true'
+        ENABLE_DEPLOY = 'false'
     }
 
     stages {
@@ -60,13 +56,8 @@ pipeline {
                     echo "===== AWS Identity ====="
                     aws sts get-caller-identity
 
-                    echo "===== SonarQube ====="
-                    curl -fsS http://10.10.11.49:9000/api/system/status
 
                     echo
-                    echo "===== Nexus ====="
-                    curl -fsS http://${NEXUS_REGISTRY}/service/rest/v1/status
-                '''
             }
         }
 
@@ -76,27 +67,6 @@ pipeline {
                     set -e
                     mvn clean verify
                 '''
-            }
-        }
-
-        stage('SonarQube Analysis') {
-    steps {
-        withSonarQubeEnv('sonarqube') {
-            sh '''
-                set -e
-                mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                  -Dsonar.projectKey=crm-microservices \
-                  -Dsonar.projectName="CRM Microservices"
-            '''
-        }
-    }
-}
-
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
             }
         }
 
@@ -120,13 +90,9 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
-
-                    def ecrServices = [
+                    def services = [
                         'gateway-service',
-                        'auth-service'
-                    ]
-
-                    def nexusServices = [
+                        'auth-service',
                         'user-service',
                         'admin-service',
                         'employee-service',
@@ -135,8 +101,7 @@ pipeline {
                         'task-service'
                     ]
 
-                    ecrServices.each { service ->
-
+                    services.each { service ->
                         def imageTag = "${service}-${BUILD_NUMBER}"
 
                         echo "Building ECR image: ${service}:${imageTag}"
@@ -148,23 +113,10 @@ pipeline {
                               .
                         """
                     }
-
-                    nexusServices.each { service ->
-
-                        def imageTag = "${service}-${BUILD_NUMBER}"
-
-                        echo "Building Nexus image: ${service}:${imageTag}"
-
-                        sh """
-                            docker build \
-                              -f ${service}/Dockerfile \
-                              -t ${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}/${service}:${imageTag} \
-                              .
-                        """
-                    }
                 }
             }
         }
+
         stage('Trivy Security Scan') {
             environment {
                 TMPDIR = '/var/lib/jenkins/trivy-tmp'
@@ -172,13 +124,9 @@ pipeline {
 
             steps {
                 script {
-
-                    def ecrServices = [
+                    def services = [
                         'gateway-service',
-                        'auth-service'
-                    ]
-
-                    def nexusServices = [
+                        'auth-service',
                         'user-service',
                         'admin-service',
                         'employee-service',
@@ -187,28 +135,11 @@ pipeline {
                         'task-service'
                     ]
 
-                    ecrServices.each { service ->
-
+                    services.each { service ->
                         def imageTag = "${service}-${BUILD_NUMBER}"
                         def image = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
 
                         echo "Trivy scanning ECR image: ${image}"
-
-                        sh """
-                            trivy image \
-                              --severity HIGH,CRITICAL \
-                              --ignore-unfixed \
-                              --exit-code 0 \
-                              ${image}
-                        """
-                    }
-
-                    nexusServices.each { service ->
-
-                        def imageTag = "${service}-${BUILD_NUMBER}"
-                        def image = "${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}/${service}:${imageTag}"
-
-                        echo "Trivy scanning Nexus image: ${image}"
 
                         sh """
                             trivy image \
@@ -239,14 +170,18 @@ pipeline {
         stage('Push ECR Images') {
             steps {
                 script {
-
                     def services = [
                         'gateway-service',
-                        'auth-service'
+                        'auth-service',
+                        'user-service',
+                        'admin-service',
+                        'employee-service',
+                        'customer-service',
+                        'hr-service',
+                        'task-service'
                     ]
 
                     services.each { service ->
-
                         def imageTag = "${service}-${BUILD_NUMBER}"
 
                         echo "Pushing ${service} to ECR"
@@ -260,57 +195,6 @@ pipeline {
             }
         }
 
-        stage('Nexus Login') {
-            steps {
-
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'nexus-credentials',
-                        usernameVariable: 'NEXUS_USER',
-                        passwordVariable: 'NEXUS_PASS'
-                    )
-                ]) {
-
-                    sh '''
-                        set +x
-
-                        echo "$NEXUS_PASS" | docker login \
-                          ${NEXUS_REGISTRY} \
-                          --username "$NEXUS_USER" \
-                          --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Push Nexus Images') {
-            steps {
-                script {
-
-                    def services = [
-                        'user-service',
-                        'admin-service',
-                        'employee-service',
-                        'customer-service',
-                        'hr-service',
-                        'task-service'
-                    ]
-
-                    services.each { service ->
-
-                        def imageTag = "${service}-${BUILD_NUMBER}"
-
-                        echo "Pushing ${service} to Nexus"
-
-                        sh """
-                            docker push \
-                              ${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}/${service}:${imageTag}
-                        """
-                    }
-                }
-            }
-        }
-
         stage('Configure EKS') {
 
             when {
@@ -318,30 +202,15 @@ pipeline {
             }
 
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'nexus-credentials',
-                    usernameVariable: 'NEXUS_USER',
-                    passwordVariable: 'NEXUS_PASS'
-                )]) {
-                    sh '''
-                        set -e
+                sh '''
+                    set -e
 
-                        aws eks update-kubeconfig \
-                          --region ${AWS_REGION} \
-                          --name ${EKS_CLUSTER_NAME}
+                    aws eks update-kubeconfig \
+                      --region ${AWS_REGION} \
+                      --name ${EKS_CLUSTER_NAME}
 
-                        kubectl get pods -n ${K8S_NAMESPACE}
-
-                        kubectl create secret docker-registry nexus-registry-secret \
-                          --docker-server=${NEXUS_REGISTRY} \
-                          --docker-username="${NEXUS_USER}" \
-                          --docker-password="${NEXUS_PASS}" \
-                          --namespace=${K8S_NAMESPACE} \
-                          --dry-run=client -o yaml | kubectl apply -f -
-
-                        echo "Nexus image pull secret configured."
-                    '''
-                }
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                '''
             }
         }
 
@@ -413,7 +282,6 @@ pipeline {
         always {
             sh '''
                 docker logout ${ECR_REGISTRY} >/dev/null 2>&1 || true
-                docker logout ${NEXUS_REGISTRY} >/dev/null 2>&1 || true
             '''
         }
     }

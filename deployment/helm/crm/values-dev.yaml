@@ -22,7 +22,7 @@ services:
   user:
     enabled: true
     name: user-service
-    registry: nexus
+    registry: ecr
     imageTag: user-service-latest
     port: 8082
     databaseEnabled: true
@@ -30,7 +30,7 @@ services:
   admin:
     enabled: true
     name: admin-service
-    registry: nexus
+    registry: ecr
     imageTag: admin-service-latest
     port: 8082
     databaseEnabled: true
@@ -38,7 +38,7 @@ services:
   employee:
     enabled: true
     name: employee-service
-    registry: nexus
+    registry: ecr
     imageTag: employee-service-latest
     port: 8083
     databaseEnabled: true
@@ -46,7 +46,7 @@ services:
   customer:
     enabled: true
     name: customer-service
-    registry: nexus
+    registry: ecr
     imageTag: customer-service-latest
     port: 8084
     databaseEnabled: true
@@ -54,7 +54,7 @@ services:
   hr:
     enabled: true
     name: hr-service
-    registry: nexus
+    registry: ecr
     imageTag: hr-service-latest
     port: 8085
     databaseEnabled: true
@@ -62,7 +62,7 @@ services:
   task:
     enabled: true
     name: task-service
-    registry: nexus
+    registry: ecr
     imageTag: task-service-latest
     port: 8089
     databaseEnabled: true
