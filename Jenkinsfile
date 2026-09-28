@@ -25,7 +25,7 @@ pipeline {
         HELM_VALUES      = 'deployment/helm/crm/values.yaml'
         HELM_DEV_VALUES  = 'deployment/helm/crm/values-dev.yaml'
 
-        ENABLE_DEPLOY = 'false'
+        ENABLE_DEPLOY = 'true'
     }
 
     stages {
