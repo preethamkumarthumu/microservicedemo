@@ -74,15 +74,8 @@ pipeline {
             steps {
                 sh '''
                     set -e
-
-                    helm lint ${HELM_CHART} \
-                      -f ${HELM_VALUES} \
-                      -f ${HELM_DEV_VALUES}
-
-                    helm template ${HELM_RELEASE} ${HELM_CHART} \
-                      -f ${HELM_VALUES} \
-                      -f ${HELM_DEV_VALUES} \
-                      > /tmp/crm-rendered.yaml
+                    helm lint "$HELM_CHART" -f "$HELM_VALUES" -f "$HELM_DEV_VALUES"
+                    helm template "$HELM_RELEASE" "$HELM_CHART" -f "$HELM_VALUES" -f "$HELM_DEV_VALUES" > /tmp/crm-rendered.yaml
                 '''
             }
         }
@@ -106,12 +99,7 @@ pipeline {
 
                         echo "Building ECR image: ${service}:${imageTag}"
 
-                        sh """
-                            docker build \
-                              -f ${service}/Dockerfile \
-                              -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag} \
-                              .
-                        """
+                        sh "docker build -f ${service}/Dockerfile -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag} ."
                     }
                 }
             }
@@ -141,13 +129,7 @@ pipeline {
 
                         echo "Trivy scanning ECR image: ${image}"
 
-                        sh """
-                            trivy image \
-                              --severity HIGH,CRITICAL \
-                              --ignore-unfixed \
-                              --exit-code 0 \
-                              ${image}
-                        """
+                        sh "trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 ${image}"
                     }
                 }
             }
@@ -186,10 +168,7 @@ pipeline {
 
                         echo "Pushing ${service} to ECR"
 
-                        sh """
-                            docker push \
-                              ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}
-                        """
+                        sh "docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
                     }
                 }
             }
